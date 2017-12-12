@@ -85,6 +85,7 @@ def random_rotation_2d(batch, max_angle):
             batch_rot[i] = batch[i]
     return batch_rot.reshape(size)
 
+<<<<<<< HEAD
 
 def accuracy_generator(labels_tensor, logits_tensor):
     """
@@ -100,6 +101,10 @@ def accuracy_generator(labels_tensor, logits_tensor):
     return accuracy
 
 
+
+
+
+=======
 def cross_entropy_loss(labels_tensor, logits_tensor, pos_weights):
     """
      Calculates the cross-entropy loss function for the given parameters.
@@ -111,4 +116,4 @@ def cross_entropy_loss(labels_tensor, logits_tensor, pos_weights):
     diff = tf.nn.sigmoid_cross_entropy_with_logits(labels=labels_tensor, logits=logits_tensor, pos_weight= pos_weights)
     loss = tf.reduce_mean(diff)
     return loss
-
+>>>>>>> 54ad2b7a07c4714fed7d8044ef0d1f1ef8d8c965

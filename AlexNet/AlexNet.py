@@ -33,6 +33,7 @@ class Alexnet:
         self.imgChannel = imgChannel
         self.h1 = 100		# Number of neurons in the first fully-connected layer
         self.h2 = 50		# Number of neurons in the second fully-connected layer
+        self.lmbda = 5e-04  # weight decay
         self.init_lr = 0.001	# Initial learning rate
         self.x, self.y, self.keep_prob = self.create_placeholders()
 
@@ -85,9 +86,15 @@ class Alexnet:
         if self.__loss:
             return self
         with tf.name_scope('Loss'):
-            diff = tf.nn.softmax_cross_entropy_with_logits(labels=self.y, logits=self.__network)
-            self.__loss = tf.reduce_mean(diff)
-            tf.summary.scalar('cross_entropy', self.__loss)
+            with tf.name_scope('cross_entropy'):
+                cross_entropy = cross_entropy_loss(self.y, self.__network, self.pos_weights)
+                tf.summary.scalar('cross_entropy', cross_entropy)
+            with tf.name_scope('l2_loss'):
+                l2_loss = tf.reduce_sum(
+                    self.lmbda * tf.stack([tf.nn.l2_loss(v) for v in tf.get_collection('reg_weights')]))
+                tf.summary.scalar('l2_loss', l2_loss)
+            with tf.name_scope('total'):
+                self.__loss = cross_entropy + l2_loss
         return self
 
     def train_func(self):
