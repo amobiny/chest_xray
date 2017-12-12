@@ -12,6 +12,7 @@ import numpy as np
 import random
 import scipy
 from tensorflow.examples.tutorials.mnist import input_data
+import tensorflow as tf
 
 
 def load_data(image_size, num_classes, num_channels, mode='train'):
@@ -26,6 +27,7 @@ def load_data(image_size, num_classes, num_channels, mode='train'):
         x_test, y_test = mnist.test.images, mnist.test.labels
         x_test, _ = reformat(x_test, y_test, image_size, num_channels, num_classes)
     return x_test, y_test
+
 
 def randomize(x, y):
     """ Randomizes the order of data samples and their corresponding labels"""
@@ -50,13 +52,12 @@ def get_next_batch(x, y, start, end):
 
 
 def random_rotation_2d(batch, max_angle):
-    """ Randomly rotate an image by a random angle (-max_angle, max_angle).
+    """
+     Randomly rotate an image by a random angle (-max_angle, max_angle).
+    :param batch: batch of images of size [number of images, height, width, depth]
+    :param max_angle: `float`. The maximum rotation angle.
+    :return: batch of rotated 2D images
 
-    Arguments:
-    max_angle: `float`. The maximum rotation angle.
-
-    Returns:
-    batch of rotated 2D images
     """
     size = batch.shape
     batch = np.squeeze(batch)
@@ -69,3 +70,22 @@ def random_rotation_2d(batch, max_angle):
         else:
             batch_rot[i] = batch[i]
     return batch_rot.reshape(size)
+
+
+def accuracy_generator(labels_tensor, logits_tensor):
+    """
+     Calculates the classification accuracy.
+    :param labels_tensor: Tensor of correct predictions of size [batch_size, numClasses]
+    :param logits_tensor: Predicted scores (logits) by the model.
+            It should have the same dimensions as labels_tensor
+    :return: accuracy: average accuracy over the samples of the current batch for each condition
+    :return: avg_accuracy: average accuracy over all conditions
+    """
+    correct_pred = tf.equal(labels_tensor, tf.round(logits_tensor))
+    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32), axis=0)
+    return accuracy
+
+
+
+
+

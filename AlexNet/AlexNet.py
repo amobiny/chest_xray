@@ -4,18 +4,19 @@ University of Houston, TX/USA
 **********************************************************************************
 Author:   Aryan Mobiny
 Date:     6/1/2017
-Comments: AlexNet implemented on the MNIST data.
+Comments: AlexNet implementation for Chest X-ray data set.
 
 The general structure of the network is similar to the network used in the original
 paper: "ImageNet Classification with Deep Convolutional Neural Networks" by Alex Krizhevsky,et. al, 
 of course with changes in the network parameters such as the number of convolutional layer filters, 
-kernel sizes, etc. to make it compatible with the MNIST data.
+kernel sizes, etc. to make it compatible with our data.
 To use it with your own data, feel free to change the parameters such as kernel sizes, strides, etc.
 **********************************************************************************
 """
 
 import tensorflow as tf
 from ops import *
+from utils import *
 
 
 class Alexnet:
@@ -23,7 +24,7 @@ class Alexnet:
     __network = None         # Graph for AlexNet
     __train_op = None        # Operation used to optimize loss function
     __loss = None            # Loss function to be optimized, which is based on predictions
-    __accuracy = None        # Classification accuracy
+    __accuracy = None        # Classification accuracy for all conditions
     __probs = None           # Prediction probability matrix of shape [batch_size, numClasses]
 
     def __init__(self, numClass, imgSize, imgChannel):
@@ -77,9 +78,7 @@ class Alexnet:
         if self.__accuracy:
             return self
         with tf.name_scope('Accuracy'):
-            correct_prediction = tf.equal(tf.argmax(self.__network, 1), tf.argmax(self.y, 1))
-            self.__accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            tf.summary.scalar('accuracy', self.__accuracy)
+            self.__accuracy = accuracy_generator(self.y, self.__network)
         return self
 
     def loss_func(self):

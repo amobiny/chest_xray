@@ -4,12 +4,12 @@ University of Houston, TX/USA
 **********************************************************************************
 Author:   Aryan Mobiny
 Date:     7/1/2017
-Comments: ResNet with 50 convolutional layer implemented on the famous MNIST data.
+Comments: ResNet-50 implementation for Chest X-ray data set.
 
 The general structure of the network is similar to the one with 50 layer used in the original
 paper: "Deep Residual Learning for Image Recognition" (see Table 1); of course with changes 
 in the network parameters such as number of filters in each of the convolutional layers, 
-kernel sizes, etc. to make it compatible with the MNIST images.
+kernel sizes, etc. to make it compatible with our images.
 **********************************************************************************
 """
 
@@ -67,6 +67,7 @@ class ResNet:
             return self
         with tf.name_scope('Accuracy'):
             self.__accuracy = accuracy_generator(self.y, self.__network)
+            tf.summary.scalar('accuracy', self.__accuracy)
         return self
 
     def loss_func(self):

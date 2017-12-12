@@ -77,11 +77,11 @@ def accuracy_generator(labels_tensor, logits_tensor):
     :param labels_tensor: Tensor of correct predictions of size [batch_size, numClasses]
     :param logits_tensor: Predicted scores (logits) by the model.
             It should have the same dimensions as labels_tensor
-    :return: accuracy: average accuracy over the samples of the current batch
+    :return: accuracy: average accuracy over the samples of the current batch for each condition
+    :return: avg_accuracy: average accuracy over all conditions
     """
-
-    correct_prediction = tf.equal(tf.argmax(logits_tensor, 1), tf.argmax(labels_tensor, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    correct_pred = tf.equal(labels_tensor, tf.round(logits_tensor))
+    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32), axis=0)
     return accuracy
 
 
