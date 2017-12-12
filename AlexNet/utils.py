@@ -8,6 +8,8 @@ Comments: Python utility functions
 **********************************************************************************
 """
 
+import os
+import h5py
 import numpy as np
 import random
 import scipy
@@ -15,15 +17,27 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 
 def load_data(image_size, num_classes, num_channels, mode='train'):
-    mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+    dir_path_parent = os.path.dirname(os.getcwd())
+    dir_path_train = dir_path_parent + '/data/chest256_train_801010.h5'
+    dir_path_valid = dir_path_parent + '/data/chest256_val_801010.h5'
+    dir_path_test = dir_path_parent + '/data/chest256_test_801010.h5'
     if mode == 'train':
-        x_train, y_train, x_valid, y_valid = mnist.train.images, mnist.train.labels, \
-                                             mnist.validation.images, mnist.validation.labels
+        h5f_train = h5py.File(dir_path_train, 'r')
+        x_train = h5f_train['X_train'][:]
+        y_train = h5f_train['Y_train'][:]
+        h5f_train.close()
+        h5f_valid = h5py.File(dir_path_valid, 'r')
+        x_valid = h5f_valid['X_val'][:]
+        y_valid = h5f_valid['Y_val'][:]
+        h5f_valid.close()
         x_train, _ = reformat(x_train, y_train, image_size, num_channels, num_classes)
         x_valid, _ = reformat(x_valid, y_valid, image_size, num_channels, num_classes)
         return x_train, y_train, x_valid, y_valid
     elif mode == 'test':
-        x_test, y_test = mnist.test.images, mnist.test.labels
+        h5f_test = h5py.File(dir_path_test, 'r')
+        x_test = h5f_test['X_test'][:]
+        y_test = h5f_test['Y_test'][:]
+        h5f_test.close()
         x_test, _ = reformat(x_test, y_test, image_size, num_channels, num_classes)
     return x_test, y_test
 
