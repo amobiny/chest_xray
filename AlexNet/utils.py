@@ -12,6 +12,7 @@ import numpy as np
 import random
 import scipy
 from tensorflow.examples.tutorials.mnist import input_data
+import tensorflow as tf
 
 
 def load_data(image_size, num_classes, num_channels, mode='train'):
@@ -69,3 +70,15 @@ def random_rotation_2d(batch, max_angle):
         else:
             batch_rot[i] = batch[i]
     return batch_rot.reshape(size)
+
+def cross_entropy_loss(labels_tensor, logits_tensor, pos_weights):
+    """
+     Calculates the cross-entropy loss function for the given parameters.
+    :param labels_tensor: Tensor of correct predictions of size [batch_size, numClasses]
+    :param logits_tensor: Predicted scores (logits) by the model.
+            It should have the same dimensions as labels_tensor
+    :return: Cross-entropy loss value over the samples of the current batch
+    """
+    diff = tf.nn.sigmoid_cross_entropy_with_logits(labels=labels_tensor, logits=logits_tensor, pos_weight= pos_weights)
+    loss = tf.reduce_mean(diff)
+    return loss
