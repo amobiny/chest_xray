@@ -9,7 +9,6 @@ Comments: Includes functions for defining the ResNet layers
 """
 
 import tensorflow as tf
-from tflearn.layers.normalization import batch_normalization
 
 
 def weight_variable(name, shape):
@@ -223,10 +222,12 @@ def bottleneck_block(x, is_train, block_name,
                                batch_norm=True,
                                use_relu=False)
             assert (
-                shortcut.get_shape().as_list() == layer_conv3.get_shape().as_list()), "Tensor sizes of the two branches are not matched!"
+                shortcut.get_shape().as_list() == layer_conv3.get_shape().as_list()), \
+                "Tensor sizes of the two branches are not matched!"
             res = shortcut + layer_conv3
         else:
             res = layer_conv3 + x
             assert (
-                x.get_shape().as_list() == layer_conv3.get_shape().as_list()), "Tensor sizes of the two branches are not matched!"
+                x.get_shape().as_list() == layer_conv3.get_shape().as_list()), \
+                "Tensor sizes of the two branches are not matched!"
     return tf.nn.relu(res)

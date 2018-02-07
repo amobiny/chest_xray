@@ -1,4 +1,3 @@
-
 """
 Copyright 2017-2022 Department of Electrical and Computer Engineering
 University of Houston, TX/USA
@@ -9,108 +8,116 @@ Comments: Run this file to train the resNet model and save the best trained mode
 **********************************************************************************
 """
 
-import h5py
-from datetime import datetime
 import numpy as np
 import tensorflow as tf
 import time
+from validation import validation
+import csv
 from ResNet import ResNet
 from utils import *
 import sys
 import os
 
-now = datetime.now()
-logs_path = "./graph/" + now.strftime("%Y%m%d-%H%M%S")
-save_dir = './checkpoints/'
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+
+conditions = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia',
+              'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis', 'Pleural_Thickening', 'Hernia']
 
 
-def train(image_size=28,
-          num_classes=10,
-          num_channels=1,
-          num_epochs=100,
-          batch_size=128,
-          display=100):
-
-    # Loading the MNIST data
-    X_train, Y_train, X_valid, Y_valid = load_data(image_size, num_classes, num_channels, mode='train')
+def train():
+    # Loading the ChestXray data
+    X_train, Y_train, X_valid, Y_valid = load_data(args.img_w, args.n_cls, args.n_ch, mode='train', with_normal=False)
     print('Training set', X_train.shape, Y_train.shape)
     print('Validation set', X_valid.shape, Y_valid.shape)
 
     # Creating the ResNet model
-    model = ResNet(num_classes, image_size, num_channels)
-    model.inference().accuracy_func().loss_func().train_func()
+    model = ResNet()
+    model.inference().accuracy_func().loss_func().train_func().pred_func()
 
     # Saving the best trained model (based on the validation accuracy)
     saver = tf.train.Saver()
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    save_path = os.path.join(save_dir, 'model_')
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+    save_path = os.path.join(args.save_dir, 'model_')
     best_validation_accuracy = 0
 
+    # create csv files
+    if not os.path.exists(args.results_dir):
+        os.makedirs(args.results_dir)
+    create_acc_loss_file(conditions)
+    create_precision_recall_file(conditions)
+
+    w_plus = (Y_train.shape[0] - np.sum(Y_train, axis=0)) / (np.sum(Y_train, axis=0))
+
     loss_batch_all = np.array([])
-    acc_batch_all = np.zeros((0, num_classes))
+    acc_batch_all = np.zeros((0, args.n_cls))
     sum_count = 0
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         print("Initialized")
         merged = tf.summary.merge_all()
-        batch_writer = tf.summary.FileWriter(logs_path + '/batch/', sess.graph)
-        valid_writer = tf.summary.FileWriter(logs_path + '/valid/')
-        for epoch in range(num_epochs):
+        batch_writer = tf.summary.FileWriter(args.logs_path + '/batch/', sess.graph)
+        valid_writer = tf.summary.FileWriter(args.logs_path + '/valid/')
+        for epoch in range(args.num_epoch):
+            model.is_train = True
             epoch_start_time = time.time()
-            print('------------------------------Training, Epoch: {} ----------------------------------'.format(epoch + 1))
+            print('__________________________________________________________________________'
+                  '____________________________________________________________')
+            print('--------------------------------------------------------Training, Epoch: {}'
+                  ' -----------------------------------------------------------'.format(epoch + 1))
+            print("Atlc\tCrdmg\tEffus\tInflt\tMass\tNodle\tPnum\tPntrx\tConsd"
+                  "\tEdma\tEmpys\tFbrss\tTkng\tHrna\t|Avg.\t|Loss\t|Step")
             X_train, Y_train = randomize(X_train, Y_train)
-            step_count = int(len(X_train) / batch_size)
-            for step in range(step_count):
-                start = step * batch_size
-                end = (step + 1) * batch_size
+            num_train_batch = int(Y_train.shape[0] / args.batch_size)
+            for step in range(num_train_batch):
+                start = step * args.batch_size
+                end = (step + 1) * args.batch_size
                 X_batch, Y_batch = get_next_batch(X_train, Y_train, start, end)
-                # X_batch = random_rotation_2d(X_batch, 20.0)
-                feed_dict_batch = {model.x: X_batch, model.y: Y_batch, model.keep_prob: 0.5}
+                X_batch = random_rotation_2d(X_batch, 10.0)
+                feed_dict_batch = {model.x: X_batch, model.y: Y_batch, model.w_plus: w_plus}
 
                 _, acc_batch, loss_batch = sess.run([model.train_op,
                                                      model.accuracy,
                                                      model.loss],
                                                     feed_dict=feed_dict_batch)
-                acc_batch_all = np.concatenate((acc_batch_all, acc_batch.reshape([1, 10])))
+                acc_batch_all = np.concatenate((acc_batch_all, acc_batch.reshape([1, args.n_cls])))
                 loss_batch_all = np.append(loss_batch_all, loss_batch)
-
-                if step > 0 and not (step % display):
+                if not (step % args.report_freq):
                     mean_acc_cond = np.mean(acc_batch_all, axis=0)
                     mean_loss = np.mean(loss_batch_all)
-                    print('step %i, training loss: %.2f, average training accuracy: %.2f' %
-                          (step, mean_loss, np.mean(mean_acc_cond) * 100))
-                    print(mean_acc_cond * 100)
+
+                    for accu in mean_acc_cond:
+                        print '{:.01%}\t'.format(accu),
+                    print '|{0:.01%}\t|{1:0.02}\t|{2}'.format(np.mean(mean_acc_cond), mean_loss, step)
                     summary_tr = tf.Summary(value=[tf.Summary.Value(tag='Mean_Accuracy',
                                                                     simple_value=np.mean(mean_acc_cond) * 100)])
-                    batch_writer.add_summary(summary_tr, sum_count * display)
-                    for cond in range(num_classes):
+                    batch_writer.add_summary(summary_tr, sum_count * args.report_freq)
+                    for cond in range(args.n_cls):
                         with tf.name_scope('Accuracy'):
                             summary_tr = tf.Summary(
-                                value=[tf.Summary.Value(tag='Accuracy_'+conditions[cond],
+                                value=[tf.Summary.Value(tag='Accuracy_' + conditions[cond],
                                                         simple_value=mean_acc_cond[cond] * 100)])
-                            batch_writer.add_summary(summary_tr, sum_count * display)
+                            batch_writer.add_summary(summary_tr, sum_count * args.report_freq)
 
                     summary_tr = tf.Summary(value=[tf.Summary.Value(tag='Mean_Loss', simple_value=mean_loss)])
-                    batch_writer.add_summary(summary_tr, sum_count * display)
+                    batch_writer.add_summary(summary_tr, sum_count * args.report_freq)
                     summary = sess.run(merged, feed_dict=feed_dict_batch)
-                    batch_writer.add_summary(summary, sum_count * display)
+                    batch_writer.add_summary(summary, sum_count * args.report_freq)
                     sum_count += 1
                     loss_batch_all = np.array([])
-                    acc_batch_all = np.zeros((0, num_classes))
+                    acc_batch_all = np.zeros((0, args.n_cls))
 
-            feed_dict_val = {model.x: X_valid, model.y: Y_valid, model.keep_prob: 1}
-            acc_valid, loss_valid = sess.run([model.accuracy,
-                                              model.loss],
-                                             feed_dict=feed_dict_val)
-            for cond in range(num_classes):
-                summary_valid = tf.Summary(value=[tf.Summary.Value(tag='Accuracy_'+conditions[cond],
+            acc_valid, loss_valid = validation(X_valid, Y_valid, args.val_batch_size, args.n_cls,
+                                               sess, model, epoch, epoch_start_time, w_plus)
+
+            for cond in range(args.n_cls):
+                summary_valid = tf.Summary(value=[tf.Summary.Value(tag='Accuracy_' + conditions[cond],
                                                                    simple_value=acc_valid[cond] * 100)])
-                valid_writer.add_summary(summary_valid, sum_count * display)
+                valid_writer.add_summary(summary_valid, sum_count * args.report_freq)
             summary_valid = tf.Summary(value=[tf.Summary.Value(tag='Mean_Loss', simple_value=loss_valid * 100)])
-            valid_writer.add_summary(summary_valid, sum_count * display)
+            valid_writer.add_summary(summary_valid, sum_count * args.report_freq)
             summary_valid = tf.Summary(value=[tf.Summary.Value(tag='Mean_Accuracy', simple_value=np.mean(acc_valid))])
-            valid_writer.add_summary(summary_valid, sum_count * display)
+            valid_writer.add_summary(summary_valid, sum_count * args.report_freq)
 
             # save the model after each epoch
             saver.save(sess=sess, save_path=save_path + str(epoch))
@@ -130,9 +137,4 @@ def train(image_size=28,
 
 
 if __name__ == '__main__':
-    train(image_size=28,
-          num_classes=10,
-          num_channels=1,
-          num_epochs=10,
-          batch_size=128,
-          display=100)
+    train()

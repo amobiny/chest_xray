@@ -25,41 +25,37 @@ class ResNet:
     __train_op = None  # Operation used to optimize loss function
     __loss = None  # Loss function to be optimized, which is based on predictions
     __accuracy = None  # Classification accuracy for all conditions
-    __probs = None  # Prediction probability matrix of shape [batch_size, numClasses]
+    __logits = None  # logits of shape [batch_size, numClasses]
+    __preds = None  # Prediction probability matrix of shape [batch_size, numClasses]
+    __features = None
+    __cls_act_map = None
+    __vol_features = None
 
-    def __init__(self, numClasses, imgSize, imgChannel):
-        self.imgSize = imgSize
-        self.imgChannel = imgChannel
-        self.numClasses = numClasses
-        self.h = 100  # number of hidden units of the fully-connected layer
-        self.lmbda = 5e-04  # weight decay
-        self.init_lr = 0.001  # initial learning rate
-        self.x, self.y, self.keep_prob = self.create_placeholders()
-        self.is_train = tf.Variable(True, trainable=False, dtype=tf.bool)
-
-    def create_placeholders(self):
-        with tf.name_scope('Input'):
-            x = tf.placeholder(tf.float32, shape=(None,
-                                                  self.imgSize,
-                                                  self.imgSize,
-                                                  self.imgChannel), name='x-input')
-            y = tf.placeholder(tf.float32, shape=(None, self.numClasses), name='y-input')
-            keep_prob = tf.placeholder(tf.float32)
-        return x, y, keep_prob
+    def __init__(self):
+        self.x = tf.placeholder(tf.float32, shape=(None, args.img_h, args.img_w, args.n_ch), name='x-input')
+        self.y = tf.placeholder(tf.float32, shape=(None, args.n_cls), name='y-input')
+        self.w_plus = tf.placeholder(tf.float32, shape=args.n_cls, name='w_plus')
+        self.weighted_loss = tf.placeholder_with_default(True, shape=(), name="mask_with_labels")
+        self.is_train = True
 
     def inference(self):
         if self.__network:
             return self
         # Building network...
         with tf.variable_scope('ResNet'):
-            net = create_network(self.x, self.h, self.keep_prob, self.numClasses, self.is_train)
+            net, net_flatten, vol_feat, cls_act_map = create_network(self.x, args.n_cls, self.is_train)
         self.__network = net
+        self.__features = net_flatten
+        self.__vol_features = vol_feat
+        self.__cls_act_map = cls_act_map
+        # cls_act_map: [64, 14]
         return self
 
     def pred_func(self):
-        if self.__probs:
+        if self.__preds:
             return self
-        self.__probs = tf.nn.softmax(self.__network)
+        self.__logits = tf.nn.sigmoid(self.__network)
+        self.__preds = tf.round(tf.nn.sigmoid(self.__network))
         return self
 
     def accuracy_func(self):
@@ -67,7 +63,6 @@ class ResNet:
             return self
         with tf.name_scope('Accuracy'):
             self.__accuracy = accuracy_generator(self.y, self.__network)
-            tf.summary.scalar('accuracy', self.__accuracy)
         return self
 
     def loss_func(self):
@@ -75,11 +70,12 @@ class ResNet:
             return self
         with tf.name_scope('Loss'):
             with tf.name_scope('cross_entropy'):
-                cross_entropy = cross_entropy_loss(self.y, self.__network)
+                cross_entropy = cross_entropy_loss(self.y, self.__network,
+                                                   self.w_plus, weighted_loss=self.weighted_loss)
                 tf.summary.scalar('cross_entropy', cross_entropy)
             with tf.name_scope('l2_loss'):
                 l2_loss = tf.reduce_sum(
-                    self.lmbda * tf.stack([tf.nn.l2_loss(v) for v in tf.get_collection('reg_weights')]))
+                    args.lmbda * tf.stack([tf.nn.l2_loss(v) for v in tf.get_collection('reg_weights')]))
                 tf.summary.scalar('l2_loss', l2_loss)
             with tf.name_scope('total'):
                 self.__loss = cross_entropy + l2_loss
@@ -89,13 +85,29 @@ class ResNet:
         if self.__train_op:
             return self
         with tf.name_scope('Train'):
-            optimizer = tf.train.AdamOptimizer(learning_rate=self.init_lr)
+            optimizer = tf.train.AdamOptimizer(learning_rate=args.init_lr)
             self.__train_op = optimizer.minimize(self.__loss)
         return self
 
     @property
-    def probs(self):
-        return self.__probs
+    def get_cls_act_map(self):
+        return self.__cls_act_map
+
+    @property
+    def get_features(self):
+        return self.__features
+
+    @property
+    def get_vol_features(self):
+        return self.__vol_features
+
+    @property
+    def get_logits(self):
+        return self.__logits
+
+    @property
+    def prediction(self):
+        return self.__preds
 
     @property
     def network(self):

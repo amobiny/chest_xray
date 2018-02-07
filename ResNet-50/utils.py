@@ -7,28 +7,33 @@ Date:     7/1/2017
 Comments: Python utility functions
 **********************************************************************************
 """
-
+import csv
 import os
 import h5py
 import numpy as np
 import random
 import scipy
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
+from config import args
 
 
-def load_data(image_size, num_classes, num_channels, mode='train'):
+def load_data(image_size, num_classes, num_channels, mode='train', with_normal=False):
     dir_path_parent = os.path.dirname(os.getcwd())
-    dir_path_train = dir_path_parent + '/data/chest256_train_801010.h5'
-    dir_path_valid = dir_path_parent + '/data/chest256_val_801010.h5'
-    dir_path_test = dir_path_parent + '/data/chest256_test_801010.h5'
+    if with_normal:
+        dir_path_train = dir_path_parent + '/data/chest256_train_801010.h5'
+        dir_path_valid = dir_path_parent + '/data/chest256_val_801010.h5'
+        dir_path_test = dir_path_parent + '/data/chest256_test_801010.h5'
+    else:
+        dir_path_train = dir_path_parent + '/data/chest256_train_801010_no_normal.h5'
+        dir_path_valid = dir_path_parent + '/data/chest256_val_801010_no_normal.h5'
+        dir_path_test = dir_path_parent + '/data/chest256_test_801010_no_normal.h5'
     if mode == 'train':
         h5f_train = h5py.File(dir_path_train, 'r')
-        x_train = h5f_train['X_train'][:]
+        x_train = h5f_train['X_train'][:] / 255.
         y_train = h5f_train['Y_train'][:]
         h5f_train.close()
         h5f_valid = h5py.File(dir_path_valid, 'r')
-        x_valid = h5f_valid['X_val'][:]
+        x_valid = h5f_valid['X_val'][:] / 255.
         y_valid = h5f_valid['Y_val'][:]
         h5f_valid.close()
         x_train, _ = reformat(x_train, y_train, image_size, num_channels, num_classes)
@@ -36,7 +41,7 @@ def load_data(image_size, num_classes, num_channels, mode='train'):
         return x_train, y_train, x_valid, y_valid
     elif mode == 'test':
         h5f_test = h5py.File(dir_path_test, 'r')
-        x_test = h5f_test['X_test'][:]
+        x_test = h5f_test['X_test'][:] / 255.
         y_test = h5f_test['Y_test'][:]
         h5f_test.close()
         x_test, _ = reformat(x_test, y_test, image_size, num_channels, num_classes)
@@ -53,8 +58,7 @@ def randomize(x, y):
 
 def reformat(x, y, img_size, num_ch, num_class):
     """ Reformats the data to the format acceptable for the conv layers"""
-    dataset = x.reshape(
-        (-1, img_size, img_size, num_ch)).astype(np.float32)
+    dataset = x.reshape((-1, img_size, img_size, num_ch)).astype(np.float32)
     labels = (np.arange(num_class) == y[:, None]).astype(np.float32)
     return dataset, labels
 
@@ -94,12 +98,13 @@ def accuracy_generator(labels_tensor, logits_tensor):
     :return: accuracy: average accuracy over the samples of the current batch for each condition
     :return: avg_accuracy: average accuracy over all conditions
     """
-    correct_pred = tf.equal(labels_tensor, tf.round(logits_tensor))
+    predictions = tf.nn.sigmoid(logits_tensor, name='predictions')
+    correct_pred = tf.equal(labels_tensor, tf.round(predictions))
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32), axis=0)
     return accuracy
 
 
-def cross_entropy_loss(labels_tensor, logits_tensor):
+def cross_entropy_loss(labels_tensor, logits_tensor, w_plus, weighted_loss=True):
     """
      Calculates the cross-entropy loss function for the given parameters.
     :param labels_tensor: Tensor of correct predictions of size [batch_size, numClasses]
@@ -107,9 +112,70 @@ def cross_entropy_loss(labels_tensor, logits_tensor):
             It should have the same dimensions as labels_tensor
     :return: Cross-entropy loss value over the samples of the current batch
     """
-    diff = tf.nn.softmax_cross_entropy_with_logits(logits=logits_tensor, labels=labels_tensor)
+    if weighted_loss:
+        labels_series = tf.unstack(labels_tensor, axis=1)
+        logits_series = tf.unstack(logits_tensor, axis=1)
+        losses_list = [tf.nn.weighted_cross_entropy_with_logits(logits=logits, targets=labels, pos_weight=w_p)
+                       for (logits, labels, w_p) in zip(logits_series, labels_series, tf.split(w_plus, args.n_cls))]
+        diff = tf.stack(losses_list, axis=1)
+    else:
+        diff = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits_tensor, labels=labels_tensor)
     loss = tf.reduce_mean(diff)
     return loss
 
 
+def precision_recall(y_true, y_pred):
+    """
+    Computes the precision and recall values for the positive class
+    :param y_true: true labels
+    :param y_pred: predicted labels
+    """
+    TP = FP = FN = TN = 0
+    for i in range(len(y_pred)):
+        if y_true[i] == 1 and y_pred[i] == 1:
+            TP += 1
+        elif y_true[i] == 0 and y_pred[i] == 1:
+            FP += 1
+        elif y_true[i] == 1 and y_pred[i] == 0:
+            FN += 1
+        elif y_true[i] == 0 and y_pred[i] == 0:
+            TN += 1
+    precision = (TP * 100.0) / (TP + FP + 0.001)
+    recall = (TP * 100.0) / (TP + FN)
+    return precision, recall
 
+
+def create_acc_loss_file(fields):
+    fields.append('loss')
+    fields.insert(0, 'epoch')
+    with open(args.results_dir + '/valid_acc_loss.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(fields)
+
+
+def create_precision_recall_file(fields):
+    fields.remove('loss')
+    with open(args.results_dir + '/valid_precision_recall.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(fields)
+    fields.remove('epoch')
+
+
+def write_acc_loss_csv(m_acc, m_loss, epo):
+    fields = m_acc.tolist()
+    fields.append(m_loss)
+    fields.insert(0, epo)
+    with open(args.results_dir + '/valid_acc_loss.csv', 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow(fields)
+
+
+def write_precision_recall_csv(precision, recall, epo):
+    fields_p = precision.tolist()
+    fields_r = recall.tolist()
+    fields_p.insert(0, epo)
+    fields_r.insert(0, epo)
+    with open(args.results_dir + '/valid_precision_recall.csv', 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow(fields_p)
+        writer.writerow(fields_r)
