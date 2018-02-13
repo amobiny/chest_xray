@@ -124,6 +124,28 @@ def cross_entropy_loss(labels_tensor, logits_tensor, w_plus, weighted_loss=True)
     return loss
 
 
+def plot_precision_recall_curve(y_true, logits, epoch_num):
+    conditions = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia',
+                  'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',
+                  'Pleural_Thickening', 'Hernia', 'Normal']
+    color = ['gold', 'darkkhaki', 'chartreuse', 'darkgreen', 'deepskyblue', 'navy',
+             'darkorchid', 'violet', 'crimson', 'brown', 'chocolate', 'gray', 'darkorange', 'pink', 'black']
+    fig = plt.figure()
+    fig.set_size_inches(12, 12)
+    ax1 = fig.add_subplot(1, 1, 1)
+
+    for cond in range(args.n_cls):
+        Precision, Recall, thresholds = precision_recall_curve(y_true[:, cond], logits[:, cond])
+        plt.plot(Recall, Precision, lw=2, color=color[cond], label=conditions[cond])
+        ax1.set_xlabel('Recall', size=18)
+        ax1.set_ylabel('Precision', size=18)
+        ax1.tick_params(labelsize=18)
+        plt.ylim([0.0, 1.05])
+        plt.xlim([0.0, 1.0])
+        plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=7, fancybox=True, shadow=True)
+    fig.savefig(args.results_dir + '/pr_' + str(epoch_num) + '.png')
+
+
 def precision_recall(y_true, y_pred):
     """
     Computes the precision and recall values for the positive class
