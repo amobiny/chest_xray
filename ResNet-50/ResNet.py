@@ -70,8 +70,8 @@ class ResNet:
             return self
         with tf.name_scope('Loss'):
             with tf.name_scope('cross_entropy'):
-                cross_entropy = cross_entropy_loss(self.y, self.__network,
-                                                   self.w_plus, weighted_loss=self.weighted_loss)
+                cross_entropy = cross_entropy_loss(self.y, self.__network, self.w_plus)
+                                                   # self.w_plus, weighted_loss=self.weighted_loss)
                 tf.summary.scalar('cross_entropy', cross_entropy)
             with tf.name_scope('l2_loss'):
                 l2_loss = tf.reduce_sum(

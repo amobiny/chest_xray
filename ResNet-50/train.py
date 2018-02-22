@@ -108,7 +108,7 @@ def train():
                     acc_batch_all = np.zeros((0, args.n_cls))
 
             acc_valid, loss_valid = validation(X_valid, Y_valid, args.val_batch_size, args.n_cls,
-                                               sess, model, epoch, epoch_start_time, w_plus)
+                                                       sess, model, epoch, epoch_start_time, w_plus)
 
             for cond in range(args.n_cls):
                 summary_valid = tf.Summary(value=[tf.Summary.Value(tag='Accuracy_' + conditions[cond],

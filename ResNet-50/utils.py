@@ -13,8 +13,11 @@ import h5py
 import numpy as np
 import random
 import scipy
+import scipy.ndimage
 import tensorflow as tf
 from config import args
+import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_curve
 
 
 def load_data(image_size, num_classes, num_channels, mode='train', with_normal=False):

@@ -60,7 +60,7 @@ def fc_layer(bottom, out_dim, layer_name, is_train=True, batch_norm=False, add_r
             layer = tf.nn.relu(layer)
         if add_reg:
             tf.add_to_collection('weights', weights)
-    return layer
+    return layer, weights
 
 
 def conv_2d(inputs, filter_size, stride, num_filters, layer_name,

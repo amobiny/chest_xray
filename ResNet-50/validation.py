@@ -1,8 +1,8 @@
-from utils import get_next_batch, randomize, precision_recall
+from utils import *
 import numpy as np
 import time
 from config import args
-from sklearn.metrics import precision_recall_curve
+
 
 
 def validation(x_valid, y_valid, val_batch_size, num_classes, sess, model, epoch, start_time, w_plus):
@@ -53,7 +53,8 @@ def validation(x_valid, y_valid, val_batch_size, num_classes, sess, model, epoch
     for cond in range(args.n_cls):
         y_true = y_valid[:, cond]
         y_pred = y_pred_all[:, cond]
-        P[0, cond], R[0, cond] = precision_recall(y_true, y_pred)
+        y_true = y_true[:len(y_pred)]
+        P[0, cond], R[0, cond]= precision_recall(y_true, y_pred)
     P = np.reshape(P, args.n_cls)
     R = np.reshape(R, args.n_cls)
 
